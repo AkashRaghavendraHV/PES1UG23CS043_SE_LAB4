@@ -14,8 +14,11 @@ class Ball:
         self.velocity_x = random.choice([-5, 5])
         self.velocity_y = random.choice([-3, 3])
         self.last_hit = None  # Track which paddle was hit last
+        self.sound_event = None  # Track sound events to play
 
     def move(self):
+        self.sound_event = None  # Reset sound event
+        
         self.x += self.velocity_x
         self.y += self.velocity_y
 
@@ -27,6 +30,9 @@ class Ball:
                 self.y = 0
             else:
                 self.y = self.screen_height - self.height
+            
+            # Signal wall bounce sound
+            self.sound_event = "wall_bounce"
 
     def check_collision(self, player, ai):
         ball_rect = self.rect()
@@ -48,6 +54,9 @@ class Ball:
                 
                 # Mark this paddle as last hit to prevent double-bounce
                 self.last_hit = 'player'
+                
+                # Signal paddle hit sound
+                self.sound_event = "paddle_hit"
         
         # Check collision with AI paddle (right side)
         elif ball_rect.colliderect(ai_rect) and self.last_hit != 'ai':
@@ -64,6 +73,9 @@ class Ball:
                 
                 # Mark this paddle as last hit to prevent double-bounce
                 self.last_hit = 'ai'
+                
+                # Signal paddle hit sound
+                self.sound_event = "paddle_hit"
         
         # Reset last_hit when ball is away from both paddles
         if not ball_rect.colliderect(player_rect) and not ball_rect.colliderect(ai_rect):
@@ -75,6 +87,7 @@ class Ball:
         self.velocity_x = random.choice([-5, 5])
         self.velocity_y = random.choice([-3, 3])
         self.last_hit = None  # Reset collision tracking
+        self.sound_event = None  # Don't play sounds on reset
 
     def rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
