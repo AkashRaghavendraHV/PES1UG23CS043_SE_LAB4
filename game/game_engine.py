@@ -1,6 +1,10 @@
 import pygame
+import os
 from .paddle import Paddle
 from .ball import Ball
+
+# Initialize pygame mixer for sound
+pygame.mixer.init()
 
 # Game Engine
 
@@ -30,6 +34,91 @@ class GameEngine:
         self.large_font = pygame.font.SysFont("Arial", 50, bold=True)
         self.small_font = pygame.font.SysFont("Arial", 20)
         self.medium_font = pygame.font.SysFont("Arial", 35)
+        
+        # Load sound effects
+        self.sounds = self.load_sounds()
+
+    def load_sounds(self):
+        """Load sound effects, use fallback if files don't exist"""
+        sounds = {
+            "paddle_hit": None,
+            "wall_bounce": None,
+            "score": None
+        }
+        
+        # Define sound file paths
+        sound_files = {
+            "paddle_hit": "sounds/paddle_hit.wav",
+            "wall_bounce": "sounds/wall_bounce.wav",
+            "score": "sounds/score.wav"
+        }
+        
+        # Try to load each sound file
+        for sound_name, file_path in sound_files.items():
+            try:
+                if os.path.exists(file_path):
+                    sounds[sound_name] = pygame.mixer.Sound(file_path)
+                    sounds[sound_name].set_volume(0.7)  # Set volume to 70%
+                    print(f"✓ Loaded {sound_name}: {file_path}")
+                else:
+                    # Create simple beep sound as fallback
+                    sounds[sound_name] = self.create_beep_sound(sound_name)
+                    print(f"⚠ Using fallback sound for {sound_name} (file not found: {file_path})")
+            except Exception as e:
+                print(f"✗ Error loading {sound_name}: {e}")
+                sounds[sound_name] = self.create_beep_sound(sound_name)
+        
+        return sounds
+
+    def create_beep_sound(self, sound_type):
+        """Create a simple beep sound as fallback"""
+        try:
+            import numpy as np
+            
+            # Create different frequency beeps for different events
+            sample_rate = 22050
+            duration = 0.1  # 100ms
+            
+            if sound_type == "paddle_hit":
+                frequency = 440  # A4 note
+            elif sound_type == "wall_bounce":
+                frequency = 330  # E4 note
+            else:  # score
+                frequency = 550  # C#5 note
+                duration = 0.2
+            
+            # Generate simple sine wave
+            samples = int(sample_rate * duration)
+            wave = np.sin(2 * np.pi * frequency * np.linspace(0, duration, samples))
+            
+            # Apply fade out to avoid clicks
+            fade_samples = int(samples * 0.1)
+            wave[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+            
+            # Convert to 16-bit integer format
+            wave = (wave * 32767).astype(np.int16)
+            
+            # Create stereo sound (duplicate mono to both channels)
+            stereo_wave = np.column_stack((wave, wave))
+            
+            sound = pygame.sndarray.make_sound(stereo_wave)
+            sound.set_volume(0.5)  # Softer volume for beeps
+            return sound
+        except ImportError:
+            print(f"⚠ numpy not installed - {sound_type} sound disabled")
+            print("  Install with: pip install numpy")
+            return None
+        except Exception as e:
+            print(f"✗ Error creating beep for {sound_type}: {e}")
+            return None
+
+    def play_sound(self, sound_name):
+        """Play a sound effect if it exists"""
+        if self.sounds.get(sound_name):
+            try:
+                self.sounds[sound_name].play()
+            except Exception as e:
+                print(f"Error playing {sound_name}: {e}")
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -91,16 +180,27 @@ class GameEngine:
             return
         
         self.ball.move()
+        
+        # Play wall bounce sound if ball hit a wall
+        if self.ball.sound_event == "wall_bounce":
+            self.play_sound("wall_bounce")
+        
         self.ball.check_collision(self.player, self.ai)
+        
+        # Play paddle hit sound if ball hit a paddle
+        if self.ball.sound_event == "paddle_hit":
+            self.play_sound("paddle_hit")
 
         # Check scoring
         if self.ball.x <= 0:
             self.ai_score += 1
+            self.play_sound("score")  # Play score sound
             self.check_game_over()
             if self.game_state == "PLAYING":
                 self.ball.reset()
         elif self.ball.x >= self.width:
             self.player_score += 1
+            self.play_sound("score")  # Play score sound
             self.check_game_over()
             if self.game_state == "PLAYING":
                 self.ball.reset()
@@ -216,4 +316,3 @@ class GameEngine:
         quit_text = self.small_font.render("Press ESC to Exit", True, WHITE)
         quit_rect = quit_text.get_rect(center=(self.width//2, self.height//2 + 120))
         screen.blit(quit_text, quit_rect)
-        
